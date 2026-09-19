@@ -22,12 +22,19 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             name: crisis-dash-linux-x86_64
-          - os: macos-13 # Intel
-            target: x86_64-apple-darwin
-            name: crisis-dash-macos-x86_64
-          - os: macos-latest # Apple Silicon
+          # Both Mac builds run on the same Apple Silicon runner rather than
+          # one of them on a dedicated Intel (macos-13) runner: GitHub has
+          # been shrinking Intel macOS runner capacity, and a queued job can
+          # sit for a very long time or never start. Xcode's own toolchain on
+          # an Apple Silicon runner already cross-compiles Intel binaries
+          # fine — no separate toolchain needed, same trick as building a
+          # universal binary locally.
+          - os: macos-latest
             target: aarch64-apple-darwin
             name: crisis-dash-macos-aarch64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            name: crisis-dash-macos-x86_64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
