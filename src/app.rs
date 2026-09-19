@@ -711,6 +711,7 @@ mod tests {
             name: name.to_string(),
             point: crate::model::GeoPoint::new(lat, lon),
             radius_deg: 1.0,
+            bbox: None,
         });
         item
     }

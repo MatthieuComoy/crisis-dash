@@ -190,6 +190,14 @@ half-block markers. **Half-block is the default** for exactly that reason; try
 regardless of map style — `#` armed conflict, `*` Middle East, `@` earthquake,
 `~` natural disaster, and so on, matching the header legend.
 
+The selected story's affected zone is drawn as a real rectangle when the
+source gives one (GDACS attaches an actual bounding box to every alert) and
+as an approximating circle otherwise — most sources only ever give a place
+name, not a shape. Zoomed into anything smaller than the world, a small
+locator inset appears in the map's corner: the whole globe with a box over
+the current viewport, since "Ukraine / Russia" or a story's own close-up
+crop otherwise gives no sense of where in the world it actually is.
+
 Filters combine: category, severity and zone all apply at once, and the story
 list's title bar shows whichever are active (e.g. `ACTIVE STORIES · Earthquake
 · SEVERE+ · Asia (4)`). The zone filter is a coordinate bounding-box cascade

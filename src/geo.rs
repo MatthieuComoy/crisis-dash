@@ -354,6 +354,7 @@ pub fn find_all(text: &str) -> Vec<Place> {
             name: e.display.clone(),
             point: e.point,
             radius_deg: e.radius_deg,
+            bbox: None,
         })
         .collect()
 }
@@ -374,6 +375,7 @@ pub fn lookup(name: &str) -> Option<Place> {
             name: e.display.clone(),
             point: e.point,
             radius_deg: e.radius_deg,
+            bbox: None,
         })
 }
 
@@ -392,6 +394,7 @@ pub fn nearest(point: GeoPoint) -> Option<Place> {
             name: e.display.clone(),
             point,
             radius_deg: e.radius_deg.min(2.0),
+            bbox: None,
         })
 }
 

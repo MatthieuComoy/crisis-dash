@@ -222,6 +222,12 @@ pub struct Place {
     /// Roughly how wide the affected zone is, in degrees. Countries are large,
     /// earthquake epicentres are small.
     pub radius_deg: f64,
+    /// The real affected-area box, when the source hands us one (GDACS does).
+    /// `[lon_min, lon_max, lat_min, lat_max]`. Drawn as an actual rectangle on
+    /// the map instead of the `radius_deg` circle, which is a guess for
+    /// everything that doesn't carry real bounds.
+    #[serde(default)]
+    pub bbox: Option<[f64; 4]>,
 }
 
 /// One atomic piece of information from one source.
@@ -396,14 +402,16 @@ impl Story {
             .max_by_key(|(_, (_, n))| *n)
             .map(|(name, (pt, _))| (name.clone(), *pt));
         let (name, point) = best?;
-        let radius = self
+        // The most recent item naming this place carries the most current
+        // read on the affected area — including its real bbox, if it has one.
+        let matching = self
             .items
             .iter()
             .filter_map(|i| i.place.as_ref())
-            .find(|p| p.name == name)
-            .map(|p| p.radius_deg)
-            .unwrap_or(3.0);
-        Some(Place { name, point, radius_deg: radius })
+            .find(|p| p.name == name);
+        let radius = matching.map(|p| p.radius_deg).unwrap_or(3.0);
+        let bbox = matching.and_then(|p| p.bbox);
+        Some(Place { name, point, radius_deg: radius, bbox })
     }
 
     /// Every distinct place mentioned, for drawing the affected zone.

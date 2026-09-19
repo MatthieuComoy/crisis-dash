@@ -403,17 +403,20 @@ fn gdacs_place(rec: &Record, title: &str) -> Option<Place> {
         .or_else(|| geo::locate(title).map(|p| p.name))
         .or_else(|| geo::nearest(point).map(|p| p.name))
         .unwrap_or_else(|| format!("{lat:.1}, {lon:.1}"));
-    // The bbox tells us how wide the affected area is.
-    let radius = rec
-        .get("bbox")
-        .and_then(|b| {
-            let v: Vec<f64> = b.split_whitespace().filter_map(|x| x.parse().ok()).collect();
-            // format: lonmin lonmax latmin latmax
-            (v.len() == 4).then(|| (v[1] - v[0]).abs().max((v[3] - v[2]).abs()) / 2.0)
+    // The bbox tells us exactly how wide the affected area is, and — unlike
+    // every other source, which only ever gets a guessed radius — lets the
+    // map draw the real shape of it rather than an approximating circle.
+    let parsed_bbox: Option<[f64; 4]> = rec.get("bbox").and_then(|b| {
+        let v: Vec<f64> = b.split_whitespace().filter_map(|x| x.parse().ok()).collect();
+        (v.len() == 4).then(|| [v[0], v[1], v[2], v[3]])
+    });
+    let radius = parsed_bbox
+        .map(|[lon_min, lon_max, lat_min, lat_max]| {
+            (lon_max - lon_min).abs().max((lat_max - lat_min).abs()) / 2.0
         })
         .unwrap_or(1.5)
         .clamp(0.3, 12.0);
-    Some(Place { name, point, radius_deg: radius })
+    Some(Place { name, point, radius_deg: radius, bbox: parsed_bbox })
 }
 
 // ---------------------------------------------------------------- USGS
@@ -459,7 +462,7 @@ fn parse_usgs(
                 .filter(|s| !s.is_empty())
                 .or_else(|| geo::nearest(point).map(|p| p.name))
                 .unwrap_or_else(|| format!("{lat:.1}, {lon:.1}"));
-            Some(Place { name, point, radius_deg: (mag / 3.0).clamp(0.4, 4.0) })
+            Some(Place { name, point, radius_deg: (mag / 3.0).clamp(0.4, 4.0), bbox: None })
         });
 
         let depth = coords.and_then(|c| c.get(2)?.as_f64()).unwrap_or(0.0);
@@ -520,7 +523,7 @@ fn parse_eonet(
             let lat = c.get(1)?.as_f64()?;
             let point = GeoPoint::new(lat, lon);
             let name = geo::nearest(point).map(|p| p.name).unwrap_or_else(|| format!("{lat:.1}, {lon:.1}"));
-            Some(Place { name, point, radius_deg: 2.0 })
+            Some(Place { name, point, radius_deg: 2.0, bbox: None })
         });
         let published = geometry
             .and_then(|g| g["date"].as_str())

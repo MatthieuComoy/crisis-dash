@@ -414,12 +414,14 @@ mod tests {
             name: "Chile".into(),
             point: GeoPoint::new(-35.0, -71.0),
             radius_deg: 2.0,
+            bbox: None,
         });
         let mut japan = item("Strong earthquake strikes coastal region today", Category::Earthquake, now);
         japan.place = Some(Place {
             name: "Japan".into(),
             point: GeoPoint::new(36.0, 138.0),
             radius_deg: 2.0,
+            bbox: None,
         });
         c.ingest(chile);
         c.ingest(japan);

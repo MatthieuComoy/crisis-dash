@@ -6,7 +6,9 @@ use crate::geo;
 use crate::model::{GeoPoint, Severity, Story};
 use chrono::{DateTime, Utc};
 use ratatui::prelude::*;
-use ratatui::widgets::canvas::{Canvas, Circle, Context, Line as CanvasLine, Map, MapResolution, Points};
+use ratatui::widgets::canvas::{
+    Canvas, Circle, Context, Line as CanvasLine, Map, MapResolution, Points, Rectangle,
+};
 use ratatui::widgets::{Block, BorderType, Borders};
 
 /// Longitude/latitude window currently shown.
@@ -206,22 +208,38 @@ pub fn render(f: &mut Frame, area: Rect, app: &mut App, now: DateTime<Utc>) {
                 resolution: MapResolution::High,
             });
 
-            // The affected zone of the selected story.
+            // The affected zone of the selected story. A real bbox (GDACS
+            // gives us one) is drawn as an actual rectangle — the true shape
+            // of the alert area — rather than the circle every other source
+            // gets, which is only ever a guess at how wide things are.
             ctx.layer();
             if let Some(place) = &selected_focus {
-                ctx.draw(&Circle {
-                    x: place.point.lon,
-                    y: place.point.lat,
-                    radius: place.radius_deg.max(0.6),
-                    color: Color::Rgb(255, 210, 120),
-                });
-                if place.radius_deg > 1.5 {
-                    ctx.draw(&Circle {
-                        x: place.point.lon,
-                        y: place.point.lat,
-                        radius: place.radius_deg * 0.55,
-                        color: Color::Rgb(180, 140, 70),
-                    });
+                match place.bbox {
+                    Some([lon_min, lon_max, lat_min, lat_max]) => {
+                        ctx.draw(&Rectangle {
+                            x: lon_min,
+                            y: lat_min,
+                            width: (lon_max - lon_min).max(0.2),
+                            height: (lat_max - lat_min).max(0.2),
+                            color: Color::Rgb(255, 210, 120),
+                        });
+                    }
+                    None => {
+                        ctx.draw(&Circle {
+                            x: place.point.lon,
+                            y: place.point.lat,
+                            radius: place.radius_deg.max(0.6),
+                            color: Color::Rgb(255, 210, 120),
+                        });
+                        if place.radius_deg > 1.5 {
+                            ctx.draw(&Circle {
+                                x: place.point.lon,
+                                y: place.point.lat,
+                                radius: place.radius_deg * 0.55,
+                                color: Color::Rgb(180, 140, 70),
+                            });
+                        }
+                    }
                 }
             }
             // Every other place the selected story mentions, linked to the focus.
@@ -289,6 +307,54 @@ pub fn render(f: &mut Frame, area: Rect, app: &mut App, now: DateTime<Utc>) {
         });
 
     f.render_widget(canvas, area);
+
+    // A zoomed-in view loses all sense of where in the world it's looking —
+    // "Ukraine / Russia" or a story's own close-up crop could be anywhere.
+    // A small whole-world inset with a rectangle over the current viewport
+    // fixes that, the way a photo editor's crop tool shows the full image
+    // with the crop box overlaid. Skipped when already showing the world, or
+    // when the pane is too small to spare the room without crowding it.
+    let zoomed_in = (vp.lon[1] - vp.lon[0]) < 300.0;
+    if zoomed_in && inner.width >= 46 && inner.height >= 12 {
+        render_inset(f, inner, vp);
+    }
+}
+
+/// Whole-world locator, overlaid in the map's bottom-right corner.
+fn render_inset(f: &mut Frame, host: Rect, vp: Viewport) {
+    let inset = Rect {
+        x: host.right().saturating_sub(23),
+        y: host.bottom().saturating_sub(8),
+        width: 22,
+        height: 7,
+    };
+    // A blank backdrop so the host map's own content underneath doesn't show
+    // through the gaps between braille dots or block glyphs.
+    f.render_widget(ratatui::widgets::Clear, inset);
+
+    let canvas = Canvas::default()
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_type(BorderType::Plain)
+                .border_style(Style::default().fg(Color::Rgb(80, 90, 105)))
+                .style(Style::default().bg(Color::Rgb(12, 15, 20))),
+        )
+        .marker(ratatui::symbols::Marker::Braille)
+        .x_bounds([-180.0, 180.0])
+        .y_bounds([-90.0, 90.0])
+        .paint(move |ctx: &mut Context| {
+            ctx.draw(&Map { color: Color::Rgb(70, 80, 92), resolution: MapResolution::Low });
+            ctx.layer();
+            ctx.draw(&Rectangle {
+                x: vp.lon[0],
+                y: vp.lat[0],
+                width: (vp.lon[1] - vp.lon[0]).max(1.0),
+                height: (vp.lat[1] - vp.lat[0]).max(1.0),
+                color: Color::Rgb(255, 210, 120),
+            });
+        });
+    f.render_widget(canvas, inset);
 }
 
 /// Severity modulates brightness so a glance at the map reads urgency.
