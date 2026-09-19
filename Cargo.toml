@@ -1,0 +1,24 @@
+[package]
+name = "crisis-dash"
+version = "0.1.0"
+edition = "2021"
+description = "Real-time international crisis monitoring TUI: multi-source scrapers, story clustering, world map, timeline"
+
+[dependencies]
+ratatui = "0.29"
+crossterm = { version = "0.28", features = ["event-stream"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "signal"] }
+futures = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "charset", "json"] }
+quick-xml = "0.37"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1"
+unicode-width = "0.2"
+dirs = "5"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+
+[profile.release]
+opt-level = 2
+lto = "thin"

@@ -1,0 +1,49 @@
+name: release
+
+# Builds a native binary on each target OS directly — no cross-compilation
+# toolchain needed, which is what makes producing a real macOS build from a
+# Linux machine practical at all. Runs on every version tag (v1.2.3) and
+# uploads each binary to that tag's GitHub Release.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: crisis-dash-linux-x86_64
+          - os: macos-13 # Intel
+            target: x86_64-apple-darwin
+            name: crisis-dash-macos-x86_64
+          - os: macos-latest # Apple Silicon
+            target: aarch64-apple-darwin
+            name: crisis-dash-macos-aarch64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package
+        run: |
+          cd target/${{ matrix.target }}/release
+          tar czf ${{ github.workspace }}/${{ matrix.name }}.tar.gz crisis-dash
+
+      - name: Upload to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.name }}.tar.gz
