@@ -60,21 +60,23 @@ it from wherever you keep it), then `cargo install --path .` there, same as
 above.
 
 **Or hand over a prebuilt binary — no Rust needed on the other machine at
-all.** `.github/workflows/release.yml` builds one natively on Linux and on
-both Intel and Apple Silicon Macs (GitHub's own macOS runners — this avoids
-needing a macOS cross-compilation toolchain on Linux, which is real friction
-otherwise) whenever a version tag is pushed, and attaches all three to that
-tag's GitHub Release. Once that's set up on a repo:
+all.** [`.github/workflows/release.yml`](.github/workflows/release.yml) builds
+one natively on Linux and on both Intel and Apple Silicon Macs (GitHub's own
+macOS runners — this avoids needing a macOS cross-compilation toolchain on
+Linux, which is real friction otherwise) whenever a version tag is pushed, and
+attaches all three to that tag's GitHub Release:
 
 ```sh
-git tag v0.1.0 && git push --tags     # kicks the workflow off
+git tag v0.1.1 && git push --tags     # kicks the workflow off
 ```
 
-Then on the Mac, once the workflow finishes (watch it under the repo's
-**Actions** tab):
+The repo is private, so downloading a release asset needs a GitHub login —
+either `gh release download` (uses your own `gh auth`), or open the
+[Releases page](https://github.com/MatthieuComoy/crisis-dash/releases) in a
+browser you're signed into and click the asset. On the Mac:
 
 ```sh
-curl -LO https://github.com/<you>/<repo>/releases/download/v0.1.0/crisis-dash-macos-aarch64.tar.gz
+gh release download v0.1.0 -R MatthieuComoy/crisis-dash -p 'crisis-dash-macos-aarch64.tar.gz'
 tar xzf crisis-dash-macos-aarch64.tar.gz
 xattr -d com.apple.quarantine crisis-dash   # unsigned binary; see note below
 mv crisis-dash ~/.local/bin/                # or anywhere on PATH
@@ -84,9 +86,6 @@ Use `crisis-dash-macos-x86_64.tar.gz` instead on an Intel Mac. The binary
 isn't Apple-notarized, so Gatekeeper will refuse to run it until that
 `xattr` line clears the quarantine flag (or: right-click → Open once, and
 confirm the dialog).
-
-This repo isn't pushed to GitHub yet — the workflow file is ready, but it
-only runs once there's a remote to push it to and a tag to trigger it.
 
 ## What it watches
 
