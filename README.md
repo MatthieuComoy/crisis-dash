@@ -61,13 +61,14 @@ above.
 
 **Or hand over a prebuilt binary — no Rust needed on the other machine at
 all.** [`.github/workflows/release.yml`](.github/workflows/release.yml) builds
-one natively on Linux and on both Intel and Apple Silicon Macs (GitHub's own
-macOS runners — this avoids needing a macOS cross-compilation toolchain on
-Linux, which is real friction otherwise) whenever a version tag is pushed, and
-attaches all three to that tag's GitHub Release:
+one for Linux and for both Apple Silicon and Intel Macs (the Intel binary is
+cross-compiled from an Apple Silicon runner, rather than using GitHub's
+dedicated Intel macOS runners — those have been queueing for a very long time
+lately) whenever a version tag is pushed, and attaches all three to that tag's
+GitHub Release:
 
 ```sh
-git tag v0.1.1 && git push --tags     # kicks the workflow off
+git tag v0.1.2 && git push --tags     # kicks the workflow off
 ```
 
 The repo is private, so downloading a release asset needs a GitHub login —
@@ -76,7 +77,7 @@ either `gh release download` (uses your own `gh auth`), or open the
 browser you're signed into and click the asset. On the Mac:
 
 ```sh
-gh release download v0.1.0 -R MatthieuComoy/crisis-dash -p 'crisis-dash-macos-aarch64.tar.gz'
+gh release download -R MatthieuComoy/crisis-dash -p 'crisis-dash-macos-aarch64.tar.gz'
 tar xzf crisis-dash-macos-aarch64.tar.gz
 xattr -d com.apple.quarantine crisis-dash   # unsigned binary; see note below
 mv crisis-dash ~/.local/bin/                # or anywhere on PATH
