@@ -353,6 +353,12 @@ fn item_overlay(f: &mut Frame, area: Rect, app: &App, now: DateTime<Utc>) {
             Style::default().fg(item.category.color()),
         ),
     ]));
+    if let Some(lang) = &item.language {
+        lines.push(Line::from(Span::styled(
+            format!("{lang} — shown as published, not translated. Press o to open the original."),
+            Style::default().fg(Color::Rgb(210, 150, 220)),
+        )));
+    }
     lines.push(Line::from(""));
     for l in timeline::wrap_for(&item.snippet, width) {
         lines.push(Line::from(Span::styled(l, Style::default().fg(Color::Rgb(200, 208, 220)))));
@@ -423,6 +429,8 @@ const HELP: &[(&str, &str)] = &[
     ("Enter", "open the entry overlay for the timeline cursor"),
     ("o", "open the entry's URL in your browser"),
     ("y", "copy the entry's URL to the clipboard"),
+    ("", "  a 3-letter badge (RUS, DEU…) flags text that isn't English or"),
+    ("", "  French — shown as published, not translated; press o to open it"),
     ("", ""),
     ("click a story", "select it, and centre the map on it"),
     ("click the map", "select the nearest story marker"),

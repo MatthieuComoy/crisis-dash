@@ -121,6 +121,8 @@ fn finalize(
         facts.push(("anchor".into(), a.id.clone()));
     }
 
+    let language = crate::lang::detect_foreign(&text);
+
     Some(Item {
         id: item_id(&draft.url),
         kind: draft.kind,
@@ -138,6 +140,7 @@ fn finalize(
         relevance: score,
         event_key: draft.event_key,
         thumbnail: draft.thumbnail,
+        language,
     })
 }
 

@@ -7,6 +7,7 @@ mod classify;
 mod cluster;
 mod geo;
 mod ingest;
+mod lang;
 mod model;
 mod persist;
 mod sources;

@@ -261,6 +261,11 @@ pub struct Item {
     /// and only for whichever entry is on screen; see `thumb.rs`.
     #[serde(default)]
     pub thumbnail: Option<String>,
+    /// ISO 639-3 code (`"RUS"`, `"DEU"`, …) when this item's text was
+    /// confidently detected as neither English nor French. See `lang.rs` —
+    /// this is a badge, not a translation.
+    #[serde(default)]
+    pub language: Option<String>,
 }
 
 /// A cluster of items that describe the same unfolding situation.

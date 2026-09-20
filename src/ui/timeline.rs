@@ -215,6 +215,12 @@ fn render_item(
             Style::default().fg(item.severity.color()).add_modifier(Modifier::BOLD),
         ));
     }
+    if let Some(lang) = &item.language {
+        head.push(Span::styled(
+            format!("{lang} "),
+            Style::default().fg(Color::Rgb(210, 150, 220)).add_modifier(Modifier::BOLD),
+        ));
+    }
     out.push(Line::from(head));
 
     // Headline.

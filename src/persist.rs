@@ -117,6 +117,7 @@ mod tests {
             relevance: 5,
             event_key: None,
             thumbnail: None,
+            language: None,
         };
         Story::new(id.to_string(), &item)
     }

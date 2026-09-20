@@ -671,6 +671,7 @@ mod tests {
             relevance: 9,
             event_key: None,
             thumbnail: None,
+            language: None,
         }
     }
 

@@ -352,6 +352,7 @@ mod tests {
             relevance: 10,
             event_key: None,
             thumbnail: None,
+            language: None,
         }
     }
 

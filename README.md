@@ -224,6 +224,26 @@ characters in truecolor, the same technique terminal image viewers like
 `chafa` use without a graphics protocol — it works in any terminal that
 already does truecolor, which this UI assumes everywhere else too.
 
+### Non-English, non-French content
+
+Sources publish in whatever language they publish in — Telegram and Mastodon
+OSINT accounts especially often post in Russian, Ukrainian, German, Arabic,
+and so on. Every item's text is run through [`whatlang`](https://github.com/greyblake/whatlang-rs),
+a small offline trigram-frequency detector (no model download, no network
+call, nothing leaves the machine), and anything confidently identified as
+neither English nor French gets a 3-letter badge (`RUS`, `DEU`, `UKR`, …) next
+to its source in the timeline, and a note in the entry overlay.
+
+This is **detection, not translation** — the text still shows exactly as
+published. A real local translator needs either a bundled machine-translation
+model (hundreds of MB per language, and a much bigger, riskier thing to get
+right than a trigram detector) or an external translation API (which would
+send the headline text off the machine — the opposite of "local"). The badge
+plus `o` to open the original in a browser (whose own translate feature can
+take it from there) is the lightweight middle ground; a bundled or
+self-hosted local translator is a reasonable follow-up if that stops being
+enough.
+
 ## Alerts
 
 Turned on by default (`a` toggles it; `ALERTS OFF` shows in the header when
