@@ -317,7 +317,20 @@ impl App {
     /// the world, or elevated-or-worse with its place in Europe. Requested as
     /// exactly this rule; there is nowhere else it is configured, since
     /// nothing else asked for a different one yet.
+    ///
+    /// Drought is excluded regardless of how GDACS grades it. Every other
+    /// GDACS hazard type — earthquake, flood, cyclone, volcano, wildfire,
+    /// tsunami — is something that just happened; a drought bulletin reports
+    /// a condition that has been developing for weeks and will keep
+    /// developing for more, and GDACS issues one per affected country, so a
+    /// single regional drought reads as a burst of "new stories" (Austria,
+    /// then Bosnia, then …) each legitimately new by our own rule but none
+    /// of them a "look now" moment the way the rest of this list is.
     fn alert_reason(&self, item: &Item) -> Option<AlertReason> {
+        let is_drought = item.event_key.as_deref().is_some_and(|k| k.starts_with("gdacs-DR-"));
+        if is_drought {
+            return None;
+        }
         if item.severity >= Severity::Critical {
             return Some(AlertReason::CriticalAnywhere);
         }
@@ -777,6 +790,39 @@ mod tests {
             now,
         )]);
         assert!(app.take_pending_alerts().is_empty());
+    }
+
+    #[test]
+    fn drought_never_alerts_even_when_severe_and_in_europe() {
+        // Regression: GDACS issues one drought bulletin per affected
+        // country, so a single regional drought reads as a burst of
+        // separately-"new" stories (Austria, then Bosnia, then …), each
+        // legitimately new by the story-creation rule but none of them a
+        // "look now" moment the way an earthquake or a war is.
+        let now = Utc::now();
+        let mut app = App::new(now);
+        let mut austria = mk_alertable(
+            "Drought is on going in Austria",
+            Severity::Severe,
+            Some(("Austria", 47.5, 14.5)),
+            now,
+        );
+        austria.event_key = Some("gdacs-DR-1001".to_string());
+        app.ingest(vec![austria]);
+        assert!(app.take_pending_alerts().is_empty(), "a new drought story must not alert");
+
+        let mut bosnia = mk_alertable(
+            "Drought is on going in Bosnia",
+            Severity::Critical,
+            Some(("Bosnia", 44.0, 18.0)),
+            now,
+        );
+        bosnia.event_key = Some("gdacs-DR-1002".to_string());
+        app.ingest(vec![bosnia]);
+        assert!(
+            app.take_pending_alerts().is_empty(),
+            "not even a critical-graded drought bulletin should alert"
+        );
     }
 
     #[test]

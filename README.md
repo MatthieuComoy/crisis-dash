@@ -253,6 +253,14 @@ its very first report is:
 - severity **elevated or worse** with its place in **Europe**, or
 - severity **critical or worse**, anywhere in the world.
 
+**Drought is excluded from both**, regardless of the severity GDACS grades it.
+GDACS issues one drought bulletin per affected country, so a single slow,
+regional drought otherwise reads as a burst of separately-"new" stories
+(Austria, then Bosnia, then …), each legitimately new by the rule below but
+none of them a "look now" moment the way every other GDACS hazard type
+(earthquake, flood, cyclone, volcano, wildfire, tsunami — all sudden-onset)
+actually is.
+
 Only a story's creation counts. A later report joining an already-tracked
 story never alerts again, no matter how severe — a war that's been running
 for months doesn't buzz on every fresh headline, only on the report that
