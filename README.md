@@ -227,17 +227,20 @@ already does truecolor, which this UI assumes everywhere else too.
 ## Alerts
 
 Turned on by default (`a` toggles it; `ALERTS OFF` shows in the header when
-it's off). Every incoming report is judged on its own — not the story's
-overall severity, which only ever ratchets up and would otherwise mean a
-story that once had one bad day alerts on every later item forever. A report
-raises an alert when it is:
+it's off). A **new story** raises an alert the moment it's first detected if
+its very first report is:
 
 - severity **elevated or worse** with its place in **Europe**, or
 - severity **critical or worse**, anywhere in the world.
 
-This fires the same way whether that report starts a brand new story or lands
-further down an already-tracked one's timeline — a fresh escalation in an
-ongoing war alerts exactly like a new one breaking out.
+Only a story's creation counts. A later report joining an already-tracked
+story never alerts again, no matter how severe — a war that's been running
+for months doesn't buzz on every fresh headline, only on the report that
+first put it on the map. An anchor (Ukraine, Gaza, Sudan, …) exists as an
+empty placeholder from startup precisely so its *first* real report — not
+its thousandth — is what fires: nothing about it was visible or actionable
+before that point, which is what "a new story" means looking in from
+outside.
 
 When one fires: a terminal bell, a desktop notification (`notify-send` on
 Linux, `osascript` on macOS), a sound beyond the bell (many terminals mute it
@@ -246,10 +249,6 @@ recentred, timeline in focus — unless you're mid-search or have an overlay
 open, in which case only the selection switches underneath so it's there the
 moment you're free to look.
 
-A story that just alerted won't alert again for 20 minutes, so five outlets
-reporting the same strike within a couple of minutes collapse into one bell
-rather than five — not a rule about "new" vs "ongoing" stories, just enough
-debounce that simultaneous corroboration of one development isn't a siren.
 This rule isn't configurable from the command line, since nothing has asked
 for a different one yet.
 

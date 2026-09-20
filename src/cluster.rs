@@ -49,9 +49,14 @@ impl Clusterer {
         c
     }
 
-    /// Route one item. Returns the id of the story it landed in, or `None` if
-    /// it was a duplicate.
-    pub fn ingest(&mut self, item: Item) -> Option<String> {
+    /// Route one item. Returns the id of the story it landed in and whether
+    /// that story was empty before this item — i.e. whether this is the
+    /// story's first-ever report, not merely a new id — or `None` if the item
+    /// was a duplicate. An anchor (Ukraine, Gaza, …) exists as an empty
+    /// placeholder from startup, so its first real item reports `is_new` too:
+    /// nothing about it was visible or actionable before that item arrived,
+    /// which is what "a new story appeared" means from outside this module.
+    pub fn ingest(&mut self, item: Item) -> Option<(String, bool)> {
         let id = item.id.clone();
         if self.stories.values().any(|s| s.has(&id)) {
             return None;
@@ -75,33 +80,41 @@ impl Clusterer {
         //    matter how alike their formulaic titles look.
         if let Some(key) = item.event_key.clone() {
             let story_id = format!("ev-{key}");
-            match self.stories.get_mut(&story_id) {
-                Some(story) => story.absorb(item),
+            let is_new = match self.stories.get_mut(&story_id) {
+                Some(story) => {
+                    let was_empty = story.items.is_empty();
+                    story.absorb(item);
+                    was_empty
+                }
                 None => {
                     let mut story = Story::new(story_id.clone(), &item);
                     story.id = story_id.clone();
                     self.stories.insert(story_id.clone(), story);
+                    true
                 }
-            }
-            return Some(story_id);
+            };
+            return Some((story_id, is_new));
         }
 
         // 2. Explicit anchor routing: the classifier decided this belongs to a
         //    named situation.
         if let Some(anchor_id) = item.facts.iter().find(|(k, _)| k == "anchor").map(|(_, v) | v.clone()) {
             if let Some(story) = self.stories.get_mut(&anchor_id) {
+                let was_empty = story.items.is_empty();
                 story.absorb(item);
-                return Some(anchor_id);
+                return Some((anchor_id, was_empty));
             }
         }
 
-        // 3. Otherwise find the most similar open story.
+        // 3. Otherwise find the most similar open story. `best_match` only
+        //    ever matches a story that already has items (see its guard
+        //    below), so joining one here is never this story's first report.
         let best = self.best_match(&item);
         match best {
             Some((story_id, _score)) => {
                 if let Some(story) = self.stories.get_mut(&story_id) {
                     story.absorb(item);
-                    return Some(story_id);
+                    return Some((story_id, false));
                 }
                 None
             }
@@ -109,7 +122,7 @@ impl Clusterer {
                 let sid = self.mint_id(&item);
                 let story = Story::new(sid.clone(), &item);
                 self.stories.insert(sid.clone(), story);
-                Some(sid)
+                Some((sid, true))
             }
         }
     }

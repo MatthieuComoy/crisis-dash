@@ -37,12 +37,6 @@ impl AlertReason {
     }
 }
 
-/// Minimum gap between two alerts for the *same* story. Short enough that a
-/// genuinely new development an hour later still gets through, long enough
-/// that five wire services reporting the same strike within a couple of
-/// minutes of each other collapse into one bell instead of five.
-const ALERT_COOLDOWN_MINUTES: i64 = 20;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Pane {
     Stories,
@@ -171,8 +165,6 @@ pub struct App {
     pub thumbnails: HashMap<String, ThumbState>,
     /// Master switch for the bell/notification/auto-switch behaviour below.
     pub alerts_enabled: bool,
-    /// When each story last fired an alert, for the cooldown.
-    alerted_at: HashMap<String, DateTime<Utc>>,
     /// Alerts raised since the last drain, for `main.rs` to act on (it owns
     /// the OS-level side effects: bell, `notify-send`, a sound player).
     pending_alerts: Vec<PendingAlert>,
@@ -216,7 +208,6 @@ impl App {
             timeline_block_starts: Vec::new(),
             thumbnails: HashMap::new(),
             alerts_enabled: true,
-            alerted_at: HashMap::new(),
             pending_alerts: Vec::new(),
             should_quit: false,
         }
@@ -254,36 +245,34 @@ impl App {
         let mut switch_to: Option<(Severity, String)> = None;
         for item in items {
             self.items_seen += 1;
-            // Judge the new report itself, before it's absorbed into the
-            // story and its own severity is lost in the story's rolled-up
-            // max (`Story::absorb` only ever raises that, never lowers it —
-            // checking the story instead of the item would mean a story that
-            // once had one bad day alerts on every single follow-up forever,
-            // however mundane, and never again the moment the cooldown from
-            // that first alert hasn't yet expired). This is what makes a new
-            // development further down an existing story's timeline alert
-            // exactly when a brand new story would, not only on creation.
+            // Judged on the item that is about to create or join a story —
+            // `Clusterer::ingest` reports whether that story was empty before
+            // this item, i.e. whether this is genuinely a *new* story rather
+            // than a new report inside one already being tracked. Only that
+            // counts: a fast-moving war stays one bell at its first qualifying
+            // report, not one per follow-up headline, no matter how severe.
             let reason = self.alert_reason(&item);
             let (item_title, item_place, item_severity) = (
                 item.title.clone(),
                 item.place.as_ref().map(|p| p.name.clone()),
                 item.severity,
             );
-            if let Some(story_id) = self.clusterer.ingest(item) {
+            if let Some((story_id, is_new_story)) = self.clusterer.ingest(item) {
                 self.items_kept += 1;
                 self.last_item_at = Some(now);
-                if let Some(reason) = reason {
-                    if self.alerts_enabled && self.alert_due(&story_id, now) {
-                        self.alerted_at.insert(story_id.clone(), now);
-                        self.pending_alerts.push(PendingAlert {
-                            story_id: story_id.clone(),
-                            title: item_title,
-                            place: item_place.unwrap_or_else(|| "unlocated".into()),
-                            severity: item_severity,
-                            reason,
-                        });
-                        if switch_to.as_ref().is_none_or(|(s, _)| item_severity > *s) {
-                            switch_to = Some((item_severity, story_id));
+                if is_new_story {
+                    if let Some(reason) = reason {
+                        if self.alerts_enabled {
+                            self.pending_alerts.push(PendingAlert {
+                                story_id: story_id.clone(),
+                                title: item_title,
+                                place: item_place.unwrap_or_else(|| "unlocated".into()),
+                                severity: item_severity,
+                                reason,
+                            });
+                            if switch_to.as_ref().is_none_or(|(s, _)| item_severity > *s) {
+                                switch_to = Some((item_severity, story_id));
+                            }
                         }
                     }
                 }
@@ -338,18 +327,6 @@ impl App {
             return Some(AlertReason::ElevatedInEurope);
         }
         None
-    }
-
-    /// Whether a story may alert right now: never, if it alerted within the
-    /// cooldown. This exists to collapse a burst of wire copy about the
-    /// identical development — five outlets reporting the same strike within
-    /// a couple of minutes — into one alert, not to silence genuinely new
-    /// developments later in the day; see `ALERT_COOLDOWN_MINUTES`.
-    fn alert_due(&self, story_id: &str, now: DateTime<Utc>) -> bool {
-        match self.alerted_at.get(story_id) {
-            Some(prev) => now - *prev > Duration::minutes(ALERT_COOLDOWN_MINUTES),
-            None => true,
-        }
     }
 
     /// Drains alerts raised since the last call, for `main.rs` to turn into
@@ -761,7 +738,7 @@ mod tests {
     }
 
     #[test]
-    fn alert_respects_cooldown_then_fires_again_once_it_expires() {
+    fn a_follow_up_on_the_same_story_never_alerts_again() {
         let now = Utc::now();
         let mut app = App::new(now);
         app.ingest(vec![mk_alertable(
@@ -770,30 +747,21 @@ mod tests {
             Some(("Poland", 51.9, 19.1)),
             now,
         )]);
-        let first = app.take_pending_alerts();
-        assert_eq!(first.len(), 1);
-        let story_id = first[0].story_id.clone();
+        assert_eq!(app.take_pending_alerts().len(), 1, "the story's first report alerts");
 
-        // A follow-up on the same story moments later should not buzz again.
+        // A later, even more severe report on that *same* story must not
+        // alert again — only the story's own creation counts, no matter how
+        // the situation develops afterwards or how much time has passed.
         app.ingest(vec![mk_alertable(
-            "Border incident escalates further",
-            Severity::Elevated,
+            "Border incident escalates further, casualties reported",
+            Severity::Critical,
             Some(("Poland", 51.9, 19.1)),
-            now + Duration::minutes(5),
+            now + Duration::hours(5),
         )]);
-        assert!(app.take_pending_alerts().is_empty(), "still within cooldown");
-
-        // Force the cooldown to have elapsed and try again. Needs a distinct
-        // title from the previous call: the item id is hashed from the
-        // title, so a repeat is indistinguishable from the same report.
-        app.alerted_at.insert(story_id, now - Duration::minutes(ALERT_COOLDOWN_MINUTES + 1));
-        app.ingest(vec![mk_alertable(
-            "Border incident escalates yet further still",
-            Severity::Elevated,
-            Some(("Poland", 51.9, 19.1)),
-            now + Duration::minutes(6),
-        )]);
-        assert_eq!(app.take_pending_alerts().len(), 1, "cooldown elapsed, should fire again");
+        assert!(
+            app.take_pending_alerts().is_empty(),
+            "a follow-up in an already-tracked story must never alert, however severe"
+        );
     }
 
     #[test]
@@ -811,13 +779,12 @@ mod tests {
     }
 
     #[test]
-    fn a_new_severe_development_alerts_even_on_an_already_tracked_story() {
-        // Regression: alerting used to check the *story's* rolled-up
-        // severity, which `Story::absorb` only ever raises — so a story that
-        // once had one bad day would alert on every later item forever
-        // (blocked only by the cooldown) and a genuinely new severe report
-        // right after the cooldown expired looked identical to a mundane
-        // one. Judging each new item on its own severity fixes both.
+    fn a_qualifying_item_joining_an_existing_story_never_alerts() {
+        // Regression: alerting used to judge each new item on its own merits
+        // regardless of whether it created a story or joined one, so a
+        // fast-moving war buzzed on every single severe headline (throttled
+        // only by a time-based cooldown). The rule now is stricter and
+        // simpler: only a story's *first* qualifying report ever alerts.
         let now = Utc::now();
         let mut app = App::new(now);
 
@@ -827,35 +794,53 @@ mod tests {
             Some(("Sudan", 15.5, 32.5)),
             now,
         )]);
-        let first = app.take_pending_alerts();
-        assert_eq!(first.len(), 1);
-        let story_id = first[0].story_id.clone();
-        // Past the cooldown, so only the new item's own content decides.
-        app.alerted_at.insert(story_id, now - Duration::minutes(ALERT_COOLDOWN_MINUTES + 1));
+        assert_eq!(app.take_pending_alerts().len(), 1, "the story's first report alerts");
 
-        // A mundane update to the same (permanently Critical-flagged) story
-        // must not alert just because the story itself once did.
-        app.ingest(vec![mk_alertable(
-            "Aid convoy departs for the region",
-            Severity::Info,
-            Some(("Sudan", 15.5, 32.5)),
-            now,
-        )]);
-        assert!(app.take_pending_alerts().is_empty(), "a mundane update should not alert");
-
-        // But a genuinely new severe development further down that same
-        // story's timeline — not a new story — must alert again.
+        // A second, independently-qualifying report that joins the same
+        // story (same place, same vocabulary) must not alert again.
         app.ingest(vec![mk_alertable(
             "Second massacre reported in neighbouring town",
             Severity::Critical,
             Some(("Sudan", 15.5, 32.5)),
             now,
         )]);
-        assert_eq!(
-            app.take_pending_alerts().len(),
-            1,
-            "a new severe report in an existing story's timeline must alert"
+        assert!(
+            app.take_pending_alerts().is_empty(),
+            "a new report joining an already-tracked story must not alert, however severe"
         );
+    }
+
+    #[test]
+    fn an_anchors_first_ever_report_counts_as_a_new_story() {
+        // Anchors (Ukraine, Gaza, …) exist as empty placeholders from
+        // startup so their history survives quiet periods. From outside this
+        // module nothing about an anchor is visible until it has a report,
+        // so its first one must alert exactly like any other new story.
+        let now = Utc::now();
+        let mut app = App::new(now);
+        let mut first = mk_alertable(
+            "Russian missile strike hits Kyiv overnight",
+            Severity::Critical,
+            Some(("Ukraine", 49.0, 32.0)),
+            now,
+        );
+        // The real pipeline sets this fact via `classify::match_anchor`;
+        // set it directly here to exercise anchor routing specifically,
+        // rather than relying on plain similarity to join the two items.
+        first.facts.push(("anchor".into(), "ukraine-war".into()));
+        app.ingest(vec![first]);
+        assert_eq!(app.take_pending_alerts().len(), 1, "an anchor's first report is a new story");
+
+        // Its second report is not — the anchor already existed by then.
+        let mut second = mk_alertable(
+            "Second missile strike reported near Kharkiv",
+            Severity::Critical,
+            Some(("Ukraine", 49.0, 32.0)),
+            now,
+        );
+        second.facts.push(("anchor".into(), "ukraine-war".into()));
+        app.ingest(vec![second]);
+        assert!(app.take_pending_alerts().is_empty(), "the anchor already existed");
     }
 
     #[test]
